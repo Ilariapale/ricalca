@@ -1,0 +1,17 @@
+{
+  "name": "Ricalca",
+  "short_name": "Ricalca",
+  "description": "Carica una foto e ricalcala con un foglio sopra lo schermo, bloccando il tocco con un lucchetto.",
+  "lang": "it",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "background_color": "#17181c",
+  "theme_color": "#17181c",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

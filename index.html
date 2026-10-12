@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#17181c">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ricalca">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>Ricalca</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap">
+<style>
+  [hidden] { display: none !important; }
+  /* Layout: schermo intero, la foto occupa tutto; barra strumenti in basso a sinistra, lucchetto in basso a destra. */
+  :root {
+    --bg: #eceae6;
+    --fg: #1d1f24;
+    --muted: #61656e;
+    --panel: #f7f6f3;
+    --line: #cfccc5;
+    --accent: #2b5fd9;
+    --accent-fg: #ffffff;
+    --danger: #b3321f;
+    --font-ui: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-num: "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17181c; --fg: #ececf0; --muted: #9a9ea8; --panel: #23252b; --line: #3a3d46;
+      --accent: #7ba2ff; --accent-fg: #0d1220; --danger: #ff8f7c; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17181c; --fg: #ececf0; --muted: #9a9ea8; --panel: #23252b; --line: #3a3d46;
+    --accent: #7ba2ff; --accent-fg: #0d1220; --danger: #ff8f7c; color-scheme: dark;
+  }
+
+  html, body { height: 100%; }
+  body {
+    margin: 0; overflow: hidden; background: var(--bg); color: var(--fg);
+    font: 15px/1.4 var(--font-ui); overscroll-behavior: none; touch-action: none;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+  button { font: inherit; color: inherit; }
+
+  #stage { position: fixed; inset: 0; background: #fff; touch-action: none; overflow: hidden; }
+  #stage.dark { background: #000; }
+  #stage.empty { background: var(--bg); }
+  #img {
+    position: absolute; left: 0; top: 0; max-width: none; max-height: none;
+    transform-origin: 0 0; pointer-events: none; will-change: transform;
+    -webkit-user-drag: none;
+  }
+
+  /* Stato iniziale */
+  #empty {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    padding: 24px 16px; box-sizing: border-box; overflow-y: auto; touch-action: pan-y;
+  }
+  .intro { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 20px; }
+  .intro h1 { margin: 0; font-size: 30px; line-height: 1.1; font-weight: 600; letter-spacing: -0.02em; text-wrap: balance; }
+  .intro ol { margin: 0; padding-left: 20px; color: var(--muted); display: flex; flex-direction: column; gap: 8px; }
+  .intro ol b { color: var(--fg); font-weight: 600; }
+  .actions { display: flex; flex-direction: column; gap: 10px; }
+  .btn {
+    min-height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel);
+    padding: 0 16px; cursor: pointer; font-weight: 500;
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+  .btn:focus-visible, .chip:focus-visible, #fab:focus-visible, #toolsToggle:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  /* Barra strumenti */
+  #dock {
+    position: fixed; left: 16px; right: 92px; z-index: 5;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    display: flex; flex-direction: column; align-items: flex-start; gap: 10px; max-width: 420px;
+  }
+  #sheet {
+    width: 100%; box-sizing: border-box; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.28);
+  }
+  .row { display: grid; grid-template-columns: 78px 1fr 46px; align-items: center; gap: 10px; }
+  .row label { font-size: 13px; color: var(--muted); }
+  .row output { font: 13px var(--font-num); text-align: right; }
+  input[type=range] { width: 100%; min-width: 0; height: 32px; accent-color: var(--accent); touch-action: pan-x; margin: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line);
+    background: transparent; cursor: pointer; font-size: 14px;
+  }
+  .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+  #toolsToggle {
+    min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--panel); cursor: pointer; font-weight: 500; box-shadow: 0 4px 16px rgba(0,0,0,.25);
+  }
+  #gestureHint { font-size: 12px; color: var(--muted); margin: 0; }
+
+  /* Lucchetto */
+  #fab {
+    position: fixed; right: 16px; z-index: 30; width: 60px; height: 60px; border-radius: 50%;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    border: 1px solid var(--line); background: var(--panel); cursor: pointer; padding: 0;
+    display: grid; place-items: center; box-shadow: 0 6px 20px rgba(0,0,0,.35); touch-action: none;
+  }
+  #fab svg.icon { width: 26px; height: 26px; }
+  #fab.on { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+  #fab .ring { position: absolute; inset: -6px; width: 72px; height: 72px; transform: rotate(-90deg); pointer-events: none; }
+  #fab .ring circle { fill: none; stroke: var(--danger); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 214; stroke-dashoffset: 214; }
+  #fab.holding .ring circle { animation: fill .8s linear forwards; }
+  @keyframes fill { to { stroke-dashoffset: 0; } }
+  #shield { position: fixed; inset: 0; z-index: 20; touch-action: none; background: transparent; }
+  #lockNote {
+    position: fixed; left: 16px; right: 92px; z-index: 25; max-width: 320px;
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px;
+    font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.3); transition: opacity .5s; pointer-events: none;
+  }
+  #lockNote.fade { opacity: 0; }
+  @media (prefers-reduced-motion: reduce) { #lockNote { transition: none; } }
+</style>
+</head>
+<body>
+
+<div id="stage" class="empty"><img id="img" alt="Foto da ricalcare" draggable="false"></div>
+
+<div id="empty">
+  <div class="intro">
+    <h1>Ricalca una foto</h1>
+    <ol>
+      <li>Carica la foto e mettila a <b>luminosità massima</b>.</li>
+      <li>Appoggia un <b>foglio sottile</b> sullo schermo e allinea.</li>
+      <li>Premi il <b>lucchetto</b>: il tocco si blocca e puoi disegnare senza spostare nulla.</li>
+    </ol>
+    <div class="actions">
+      <button class="btn primary" id="pick" type="button">Scegli una foto</button>
+      <button class="btn" id="sample" type="button">Prova con un disegno di esempio</button>
+    </div>
+  </div>
+</div>
+
+<input id="file" type="file" accept="image/*" hidden>
+
+<div id="dock" hidden>
+  <div id="sheet" hidden>
+    <div class="row"><label for="op">Opacità</label><input id="op" type="range" min="5" max="100" value="60"><output id="opOut">60%</output></div>
+    <div class="row"><label for="con">Contrasto</label><input id="con" type="range" min="50" max="400" value="100"><output id="conOut">100%</output></div>
+    <div class="chips">
+      <button class="chip" id="gray" type="button" aria-pressed="false">Bianco e nero</button>
+      <button class="chip" id="inv" type="button" aria-pressed="false">Inverti</button>
+      <button class="chip" id="flip" type="button" aria-pressed="false">Specchia</button>
+      <button class="chip" id="bg" type="button" aria-pressed="false">Sfondo nero</button>
+    </div>
+    <div class="chips">
+      <button class="chip" id="fit" type="button">Ricentra</button>
+      <button class="chip" id="change" type="button">Cambia foto</button>
+    </div>
+    <p id="gestureHint">Un dito sposta, due dita ingrandiscono e ruotano.</p>
+  </div>
+  <button id="toolsToggle" type="button" aria-expanded="false" aria-controls="sheet">Strumenti</button>
+</div>
+
+<div id="shield" hidden></div>
+<div id="lockNote" class="fade" hidden>Tocco bloccato. Tieni premuto il lucchetto per sbloccare.</div>
+
+<button id="fab" type="button" aria-label="Blocca il tocco" hidden>
+  <svg class="ring" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="34"/></svg>
+  <svg class="icon" id="fabIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <rect x="5" y="11" width="14" height="10" rx="2"/><path id="shackle" d="M8 11V8a4 4 0 0 1 7.5-2"/>
+  </svg>
+</button>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var stage = $('stage'), img = $('img'), fab = $('fab'), shield = $('shield');
+  var st = { x: 0, y: 0, s: 1, r: 0, flip: false, w: 0, h: 0, op: 0.6, con: 100, gray: false, inv: false, dark: false, has: false, locked: false };
+  var objectUrl = null, wakeLock = null, sheetOpen = true;
+
+  function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
+
+  function apply() {
+    img.style.transform = 'translate(' + st.x + 'px,' + st.y + 'px) rotate(' + st.r + 'rad) scale(' + (st.flip ? -st.s : st.s) + ',' + st.s + ') translate(' + (-st.w / 2) + 'px,' + (-st.h / 2) + 'px)';
+    img.style.opacity = st.op;
+    img.style.filter = 'grayscale(' + (st.gray ? 1 : 0) + ') contrast(' + st.con + '%) invert(' + (st.inv ? 1 : 0) + ')';
+  }
+
+  function fit() {
+    var r = stage.getBoundingClientRect();
+    st.x = r.width / 2; st.y = r.height / 2; st.r = 0;
+    st.s = Math.min(r.width / st.w, r.height / st.h) * 0.92;
+    apply();
+  }
+
+  function showImage(src) {
+    img.onload = function () {
+      st.w = img.naturalWidth; st.h = img.naturalHeight; st.has = true;
+      stage.classList.remove('empty');
+      $('empty').hidden = true; $('dock').hidden = false; fab.hidden = false;
+      setSheet(true);
+      fit(); requestWake();
+    };
+    img.src = src;
+  }
+
+  function loadFile(file) {
+    if (!file || !/^image\//.test(file.type)) return;
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = URL.createObjectURL(file);
+    showImage(objectUrl);
+  }
+
+  function makeSample() {
+    var c = document.createElement('canvas'); c.width = 900; c.height = 1200;
+    var g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+    g.strokeStyle = '#111'; g.lineWidth = 7; g.lineJoin = 'round'; g.lineCap = 'round';
+    g.strokeRect(210, 560, 480, 400);
+    g.beginPath(); g.moveTo(170, 560); g.lineTo(450, 330); g.lineTo(730, 560); g.closePath(); g.stroke();
+    g.strokeRect(400, 770, 100, 190);
+    g.strokeRect(260, 650, 90, 90); g.strokeRect(550, 650, 90, 90);
+    g.beginPath(); g.moveTo(305, 650); g.lineTo(305, 740); g.moveTo(260, 695); g.lineTo(350, 695); g.stroke();
+    g.beginPath(); g.arc(760, 220, 70, 0, Math.PI * 2); g.stroke();
+    for (var i = 0; i < 10; i++) {
+      var a = i * Math.PI / 5;
+      g.beginPath(); g.moveTo(760 + Math.cos(a) * 90, 220 + Math.sin(a) * 90); g.lineTo(760 + Math.cos(a) * 125, 220 + Math.sin(a) * 125); g.stroke();
+    }
+    g.beginPath(); g.moveTo(90, 960); g.lineTo(810, 960); g.stroke();
+    showImage(c.toDataURL('image/png'));
+  }
+
+  /* Gesti: un dito sposta, due dita zoom + rotazione */
+  var ptrs = new Map();
+  function pt(e) { var r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  stage.addEventListener('pointerdown', function (e) {
+    if (!st.has || st.locked) return;
+    try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+    ptrs.set(e.pointerId, pt(e));
+  });
+  stage.addEventListener('pointermove', function (e) {
+    if (!ptrs.has(e.pointerId)) return;
+    var prev = Array.from(ptrs.values());
+    ptrs.set(e.pointerId, pt(e));
+    var cur = Array.from(ptrs.values());
+    if (cur.length === 1) {
+      st.x += cur[0].x - prev[0].x; st.y += cur[0].y - prev[0].y;
+    } else {
+      var a0 = prev[0], b0 = prev[1], a1 = cur[0], b1 = cur[1];
+      var m0 = { x: (a0.x + b0.x) / 2, y: (a0.y + b0.y) / 2 };
+      var m1 = { x: (a1.x + b1.x) / 2, y: (a1.y + b1.y) / 2 };
+      var d0 = Math.hypot(b0.x - a0.x, b0.y - a0.y) || 1, d1 = Math.hypot(b1.x - a1.x, b1.y - a1.y);
+      var ds = d1 / d0;
+      var dr = Math.atan2(b1.y - a1.y, b1.x - a1.x) - Math.atan2(b0.y - a0.y, b0.x - a0.x);
+      var vx = st.x - m0.x, vy = st.y - m0.y, c = Math.cos(dr), sn = Math.sin(dr);
+      st.x = m1.x + ds * (c * vx - sn * vy);
+      st.y = m1.y + ds * (sn * vx + c * vy);
+      st.s = clamp(st.s * ds, 0.03, 30);
+      st.r += dr;
+    }
+    apply();
+  });
+  function endPtr(e) { ptrs.delete(e.pointerId); }
+  stage.addEventListener('pointerup', endPtr);
+  stage.addEventListener('pointercancel', endPtr);
+  stage.addEventListener('wheel', function (e) {
+    if (!st.has || st.locked) return;
+    e.preventDefault();
+    var p = pt(e), k = Math.exp(-e.deltaY * 0.0015), ns = clamp(st.s * k, 0.03, 30), ds = ns / st.s;
+    st.x = p.x + ds * (st.x - p.x); st.y = p.y + ds * (st.y - p.y); st.s = ns; apply();
+  }, { passive: false });
+  document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+
+  /* Strumenti */
+  function setSheet(open) {
+    sheetOpen = open;
+    $('sheet').hidden = !open || st.locked;
+    $('toolsToggle').setAttribute('aria-expanded', String(open));
+    $('toolsToggle').textContent = open ? 'Chiudi strumenti' : 'Strumenti';
+  }
+  $('toolsToggle').addEventListener('click', function () { setSheet(!sheetOpen); });
+  $('op').addEventListener('input', function (e) { st.op = e.target.value / 100; $('opOut').textContent = e.target.value + '%'; apply(); });
+  $('con').addEventListener('input', function (e) { st.con = +e.target.value; $('conOut').textContent = e.target.value + '%'; apply(); });
+  function toggle(id, key, label) {
+    $(id).addEventListener('click', function () {
+      st[key] = !st[key];
+      this.setAttribute('aria-pressed', String(st[key]));
+      if (key === 'dark') { stage.classList.toggle('dark', st.dark); this.textContent = st.dark ? 'Sfondo bianco' : 'Sfondo nero'; }
+      apply();
+    });
+  }
+  toggle('gray', 'gray'); toggle('inv', 'inv'); toggle('flip', 'flip'); toggle('bg', 'dark');
+  $('fit').addEventListener('click', fit);
+  $('change').addEventListener('click', function () { $('file').click(); });
+  $('pick').addEventListener('click', function () { $('file').click(); });
+  $('sample').addEventListener('click', makeSample);
+  $('file').addEventListener('change', function (e) { loadFile(e.target.files[0]); e.target.value = ''; });
+  document.addEventListener('dragover', function (e) { e.preventDefault(); });
+  document.addEventListener('drop', function (e) { e.preventDefault(); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+
+  /* Blocco del tocco: sblocca solo tenendo premuto il lucchetto */
+  var holdTimer = null, wasLocked = false, noteTimer = null;
+  function setLocked(v) {
+    st.locked = v; ptrs.clear();
+    shield.hidden = !v;
+    fab.classList.toggle('on', v);
+    fab.setAttribute('aria-label', v ? 'Tieni premuto per sbloccare il tocco' : 'Blocca il tocco');
+    $('shackle').setAttribute('d', v ? 'M8 11V8a4 4 0 0 1 8 0v3' : 'M8 11V8a4 4 0 0 1 7.5-2');
+    $('dock').hidden = v || !st.has;
+    var note = $('lockNote');
+    clearTimeout(noteTimer);
+    if (v) {
+      note.hidden = false; note.classList.remove('fade');
+      noteTimer = setTimeout(function () { note.classList.add('fade'); }, 3500);
+    } else { note.hidden = true; }
+    setSheet(sheetOpen);
+  }
+  function stopHold() { clearTimeout(holdTimer); fab.classList.remove('holding'); }
+  fab.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    wasLocked = st.locked;
+    if (wasLocked) {
+      fab.classList.add('holding');
+      holdTimer = setTimeout(function () { stopHold(); wasLocked = false; setLocked(false); fab.dataset.done = '1'; }, 800);
+    }
+  });
+  fab.addEventListener('pointerup', function () {
+    var wasHolding = wasLocked;
+    stopHold();
+    if (fab.dataset.done) { delete fab.dataset.done; return; }
+    if (!wasHolding && !st.locked) setLocked(true);
+  });
+  fab.addEventListener('pointercancel', stopHold);
+  fab.addEventListener('pointerleave', stopHold);
+  fab.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  fab.addEventListener('click', function (e) { if (e.detail === 0 && !st.locked) setLocked(true); });
+  ['pointerdown', 'touchstart', 'touchmove', 'contextmenu'].forEach(function (t) {
+    shield.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false });
+  });
+
+  /* Schermo sempre acceso mentre si ricalca (se il browser lo consente) */
+  function requestWake() {
+    try {
+      if (navigator.wakeLock && document.visibilityState === 'visible' && !wakeLock) {
+        navigator.wakeLock.request('screen').then(function (l) {
+          wakeLock = l; l.addEventListener('release', function () { wakeLock = null; });
+        }).catch(function () {});
+      }
+    } catch (_) {}
+  }
+  document.addEventListener('visibilitychange', function () { if (st.has) requestWake(); });
+  window.addEventListener('resize', function () { if (st.has && !ptrs.size) apply(); });
+
+  apply();
+})();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+}
+</script>
+</body>
+</html>
